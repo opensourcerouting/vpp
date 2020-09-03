@@ -1829,6 +1829,41 @@ static void vl_api_virtio_pci_create_reply_t_handler_json
 }
 
 static void
+  vl_api_virtio_pci_create_v2_reply_t_handler
+  (vl_api_virtio_pci_create_v2_reply_t * mp)
+{
+  vat_main_t *vam = &vat_main;
+  i32 retval = ntohl (mp->retval);
+  if (vam->async_mode)
+    {
+      vam->async_errors += (retval < 0);
+    }
+  else
+    {
+      vam->retval = retval;
+      vam->sw_if_index = ntohl (mp->sw_if_index);
+      vam->result_ready = 1;
+    }
+}
+
+static void vl_api_virtio_pci_create_v2_reply_t_handler_json
+  (vl_api_virtio_pci_create_v2_reply_t * mp)
+{
+  vat_main_t *vam = &vat_main;
+  vat_json_node_t node;
+
+  vat_json_init_object (&node);
+  vat_json_object_add_int (&node, "retval", ntohl (mp->retval));
+  vat_json_object_add_uint (&node, "sw_if_index", ntohl (mp->sw_if_index));
+
+  vat_json_print (vam->ofp, &node);
+  vat_json_free (&node);
+
+  vam->retval = ntohl (mp->retval);
+  vam->result_ready = 1;
+}
+
+static void
 vl_api_virtio_pci_delete_reply_t_handler (vl_api_virtio_pci_delete_reply_t *
 					  mp)
 {
@@ -1881,6 +1916,41 @@ vl_api_bond_create_reply_t_handler (vl_api_bond_create_reply_t * mp)
 
 static void vl_api_bond_create_reply_t_handler_json
   (vl_api_bond_create_reply_t * mp)
+{
+  vat_main_t *vam = &vat_main;
+  vat_json_node_t node;
+
+  vat_json_init_object (&node);
+  vat_json_object_add_int (&node, "retval", ntohl (mp->retval));
+  vat_json_object_add_uint (&node, "sw_if_index", ntohl (mp->sw_if_index));
+
+  vat_json_print (vam->ofp, &node);
+  vat_json_free (&node);
+
+  vam->retval = ntohl (mp->retval);
+  vam->result_ready = 1;
+}
+
+static void
+vl_api_bond_create2_reply_t_handler (vl_api_bond_create2_reply_t * mp)
+{
+  vat_main_t *vam = &vat_main;
+  i32 retval = ntohl (mp->retval);
+
+  if (vam->async_mode)
+    {
+      vam->async_errors += (retval < 0);
+    }
+  else
+    {
+      vam->retval = retval;
+      vam->sw_if_index = ntohl (mp->sw_if_index);
+      vam->result_ready = 1;
+    }
+}
+
+static void vl_api_bond_create2_reply_t_handler_json
+  (vl_api_bond_create2_reply_t * mp)
 {
   vat_main_t *vam = &vat_main;
   vat_json_node_t node;
@@ -5242,9 +5312,11 @@ _(TAP_CREATE_V2_REPLY, tap_create_v2_reply)				\
 _(TAP_DELETE_V2_REPLY, tap_delete_v2_reply)				\
 _(SW_INTERFACE_TAP_V2_DETAILS, sw_interface_tap_v2_details)             \
 _(VIRTIO_PCI_CREATE_REPLY, virtio_pci_create_reply)			\
+_(VIRTIO_PCI_CREATE_V2_REPLY, virtio_pci_create_v2_reply)		\
 _(VIRTIO_PCI_DELETE_REPLY, virtio_pci_delete_reply)			\
 _(SW_INTERFACE_VIRTIO_PCI_DETAILS, sw_interface_virtio_pci_details)     \
 _(BOND_CREATE_REPLY, bond_create_reply)	   			        \
+_(BOND_CREATE2_REPLY, bond_create2_reply)				\
 _(BOND_DELETE_REPLY, bond_delete_reply)			  	        \
 _(BOND_ADD_MEMBER_REPLY, bond_add_member_reply)				\
 _(BOND_DETACH_MEMBER_REPLY, bond_detach_member_reply)			\
@@ -7390,6 +7462,10 @@ api_tap_create_v2 (vat_main_t * vam)
 	tap_flags |= TAP_API_FLAG_TUN;
       else if (unformat (i, "gro-coalesce"))
 	tap_flags |= TAP_API_FLAG_GRO_COALESCE;
+      else if (unformat (i, "packed"))
+	tap_flags |= TAP_API_FLAG_PACKED;
+      else if (unformat (i, "in-order"))
+	tap_flags |= TAP_API_FLAG_IN_ORDER;
       else
 	break;
     }
@@ -7559,16 +7635,15 @@ unformat_vlib_pci_addr (unformat_input_t * input, va_list * args)
 }
 
 static int
-api_virtio_pci_create (vat_main_t * vam)
+api_virtio_pci_create_v2 (vat_main_t * vam)
 {
   unformat_input_t *i = vam->input;
-  vl_api_virtio_pci_create_t *mp;
+  vl_api_virtio_pci_create_v2_t *mp;
   u8 mac_address[6];
   u8 random_mac = 1;
-  u8 gso_enabled = 0;
-  u8 checksum_offload_enabled = 0;
   u32 pci_addr = 0;
   u64 features = (u64) ~ (0ULL);
+  u32 virtio_flags = 0;
   int ret;
 
   clib_memset (mac_address, 0, sizeof (mac_address));
@@ -7585,9 +7660,15 @@ api_virtio_pci_create (vat_main_t * vam)
       else if (unformat (i, "features 0x%llx", &features))
 	;
       else if (unformat (i, "gso-enabled"))
-	gso_enabled = 1;
+	virtio_flags |= VIRTIO_API_FLAG_GSO;
       else if (unformat (i, "csum-offload-enabled"))
-	checksum_offload_enabled = 1;
+	virtio_flags |= VIRTIO_API_FLAG_CSUM_OFFLOAD;
+      else if (unformat (i, "gro-coalesce"))
+	virtio_flags |= VIRTIO_API_FLAG_GRO_COALESCE;
+      else if (unformat (i, "packed"))
+	virtio_flags |= VIRTIO_API_FLAG_PACKED;
+      else if (unformat (i, "in-order"))
+	virtio_flags |= VIRTIO_API_FLAG_IN_ORDER;
       else
 	break;
     }
@@ -7599,7 +7680,7 @@ api_virtio_pci_create (vat_main_t * vam)
     }
 
   /* Construct the API message */
-  M (VIRTIO_PCI_CREATE, mp);
+  M (VIRTIO_PCI_CREATE_V2, mp);
 
   mp->use_random_mac = random_mac;
 
@@ -7609,8 +7690,7 @@ api_virtio_pci_create (vat_main_t * vam)
   mp->pci_addr.function = ((vlib_pci_addr_t) pci_addr).function;
 
   mp->features = clib_host_to_net_u64 (features);
-  mp->gso_enabled = gso_enabled;
-  mp->checksum_offload_enabled = checksum_offload_enabled;
+  mp->virtio_flags = clib_host_to_net_u32 (virtio_flags);
 
   if (random_mac == 0)
     clib_memcpy (mp->mac_address, mac_address, 6);
@@ -7713,6 +7793,73 @@ api_bond_create (vat_main_t * vam)
   mp->lb = htonl (lb);
   mp->id = htonl (id);
   mp->numa_only = numa_only;
+
+  if (custom_mac)
+    clib_memcpy (mp->mac_address, mac_address, 6);
+
+  /* send it... */
+  S (mp);
+
+  /* Wait for a reply... */
+  W (ret);
+  return ret;
+}
+
+static int
+api_bond_create2 (vat_main_t * vam)
+{
+  unformat_input_t *i = vam->input;
+  vl_api_bond_create2_t *mp;
+  u8 mac_address[6];
+  u8 custom_mac = 0;
+  int ret;
+  u8 mode;
+  u8 lb;
+  u8 mode_is_set = 0;
+  u32 id = ~0;
+  u8 numa_only = 0;
+  u8 gso = 0;
+
+  clib_memset (mac_address, 0, sizeof (mac_address));
+  lb = BOND_LB_L2;
+
+  /* Parse args required to build the message */
+  while (unformat_check_input (i) != UNFORMAT_END_OF_INPUT)
+    {
+      if (unformat (i, "mode %U", unformat_bond_mode, &mode))
+	mode_is_set = 1;
+      else if (((mode == BOND_MODE_LACP) || (mode == BOND_MODE_XOR))
+	       && unformat (i, "lb %U", unformat_bond_load_balance, &lb))
+	;
+      else if (unformat (i, "hw-addr %U", unformat_ethernet_address,
+			 mac_address))
+	custom_mac = 1;
+      else if (unformat (i, "numa-only"))
+	numa_only = 1;
+      else if (unformat (i, "gso"))
+	gso = 1;
+      else if (unformat (i, "id %u", &id))
+	;
+      else
+	break;
+    }
+
+  if (mode_is_set == 0)
+    {
+      errmsg ("Missing bond mode. ");
+      return -99;
+    }
+
+  /* Construct the API message */
+  M (BOND_CREATE2, mp);
+
+  mp->use_custom_mac = custom_mac;
+
+  mp->mode = htonl (mode);
+  mp->lb = htonl (lb);
+  mp->id = htonl (id);
+  mp->numa_only = numa_only;
+  mp->enable_gso = gso;
 
   if (custom_mac)
     clib_memcpy (mp->mac_address, mac_address, 6);
@@ -20659,12 +20806,12 @@ _(l2_flags,                                                             \
 _(bridge_flags,                                                         \
   "bd_id <bridge-domain-id> [learn] [forward] [uu-flood] [flood] [arp-term] [disable]\n") \
 _(tap_create_v2,                                                        \
-  "id <num> [hw-addr <mac-addr>] [host-if-name <name>] [host-ns <name>] [num-rx-queues <num>] [rx-ring-size <num>] [tx-ring-size <num>] [host-bridge <name>] [host-mac-addr <mac-addr>] [host-ip4-addr <ip4addr/mask>] [host-ip6-addr <ip6addr/mask>] [host-mtu-size <mtu>] [gso | no-gso | csum-offload | gro-coalesce] [persist] [attach] [tun]") \
+  "id <num> [hw-addr <mac-addr>] [host-if-name <name>] [host-ns <name>] [num-rx-queues <num>] [rx-ring-size <num>] [tx-ring-size <num>] [host-bridge <name>] [host-mac-addr <mac-addr>] [host-ip4-addr <ip4addr/mask>] [host-ip6-addr <ip6addr/mask>] [host-mtu-size <mtu>] [gso | no-gso | csum-offload | gro-coalesce] [persist] [attach] [tun] [packed] [in-order]") \
 _(tap_delete_v2,                                                        \
   "<vpp-if-name> | sw_if_index <id>")                                   \
 _(sw_interface_tap_v2_dump, "")                                         \
-_(virtio_pci_create,                                                    \
-  "pci-addr <pci-address> [use_random_mac | hw-addr <mac-addr>] [features <hex-value>] [gso-enabled | csum-offload-enabled]") \
+_(virtio_pci_create_v2,                                                    \
+  "pci-addr <pci-address> [use_random_mac | hw-addr <mac-addr>] [features <hex-value>] [gso-enabled [gro-coalesce] | csum-offload-enabled] [packed] [in-order]") \
 _(virtio_pci_delete,                                                    \
   "<vpp-if-name> | sw_if_index <id>")                                   \
 _(sw_interface_virtio_pci_dump, "")                                     \
@@ -20672,6 +20819,10 @@ _(bond_create,                                                          \
   "[hw-addr <mac-addr>] {round-robin | active-backup | "                \
   "broadcast | {lacp | xor} [load-balance { l2 | l23 | l34 }]} "        \
   "[id <if-id>]")							\
+_(bond_create2,                                                         \
+  "[hw-addr <mac-addr>] {mode round-robin | active-backup | "           \
+  "broadcast | {lacp | xor} [load-balance { l2 | l23 | l34 }]} "        \
+  "[id <if-id>] [gso]")							\
 _(bond_delete,                                                          \
   "<vpp-if-name> | sw_if_index <id>")                                   \
 _(bond_add_member,                                                      \

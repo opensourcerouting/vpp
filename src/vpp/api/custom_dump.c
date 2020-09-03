@@ -591,6 +591,10 @@ static void *vl_api_tap_create_v2_t_print
     s = format (s, "tun ");
   if ((mp->tap_flags) & TAP_API_FLAG_GRO_COALESCE)
     s = format (s, "gro-coalesce-enabled ");
+  if ((mp->tap_flags) & TAP_API_FLAG_PACKED)
+    s = format (s, "packed ");
+  if ((mp->tap_flags) & TAP_API_FLAG_IN_ORDER)
+    s = format (s, "in-order ");
   FINISH;
 }
 
@@ -639,6 +643,35 @@ __clib_unused
 }
 
 __clib_unused
+  static void *vl_api_virtio_pci_create_v2_t_print
+  (vl_api_virtio_pci_create_v2_t * mp, void *handle)
+{
+  u8 *s;
+  u8 null_mac[6];
+
+  clib_memset (null_mac, 0, sizeof (null_mac));
+
+  s = format (0, "SCRIPT: virtio_pci_create_v2 ");
+  s = format (s, "pci_addr %U ", format_vlib_pci_addr, (mp->pci_addr));
+  if (memcmp (mp->mac_address, null_mac, 6))
+    s = format (s, "mac-address %U ",
+		format_ethernet_address, mp->mac_address);
+  if (mp->features)
+    s = format (s, "features 0x%llx ", clib_net_to_host_u64 (mp->features));
+  if (mp->virtio_flags & VIRTIO_API_FLAG_GSO)
+    s = format (s, "gso-enabled ");
+  if (mp->virtio_flags & VIRTIO_API_FLAG_CSUM_OFFLOAD)
+    s = format (s, "checksum_offload_enabled ");
+  if ((mp->virtio_flags) & VIRTIO_API_FLAG_GRO_COALESCE)
+    s = format (s, "gro-coalesce-enabled ");
+  if ((mp->virtio_flags) & VIRTIO_API_FLAG_PACKED)
+    s = format (s, "packed ");
+  if ((mp->virtio_flags) & VIRTIO_API_FLAG_IN_ORDER)
+    s = format (s, "in-order ");
+  FINISH;
+}
+
+__clib_unused
   static void *vl_api_virtio_pci_delete_t_print
   (vl_api_virtio_pci_delete_t * mp, void *handle)
 {
@@ -679,6 +712,31 @@ static void *vl_api_bond_create_t_print
     s = format (s, "lb %U ", format_bond_load_balance, ntohl (mp->lb));
   if (mp->numa_only)
     s = format (s, "numa-only is set in lacp mode");
+  if (mp->id != ~0)
+    s = format (s, "id %u ", (mp->id));
+  FINISH;
+}
+
+static void *vl_api_bond_create2_t_print
+  (vl_api_bond_create2_t * mp, void *handle)
+{
+  u8 *s;
+  u8 null_mac[6];
+
+  clib_memset (null_mac, 0, sizeof (null_mac));
+
+  s = format (0, "SCRIPT: bond_create2 ");
+  if (memcmp (mp->mac_address, null_mac, 6))
+    s = format (s, "mac-address %U ",
+		format_ethernet_address, mp->mac_address);
+  if (mp->mode)
+    s = format (s, "mode %U ", format_bond_mode, ntohl (mp->mode));
+  if (mp->lb)
+    s = format (s, "lb %U ", format_bond_load_balance, ntohl (mp->lb));
+  if (mp->numa_only)
+    s = format (s, "numa-only ");
+  if (mp->enable_gso)
+    s = format (s, "gso ");
   if (mp->id != ~0)
     s = format (s, "id %u ", (mp->id));
   FINISH;
@@ -3559,6 +3617,7 @@ _(SW_INTERFACE_SET_VPATH, sw_interface_set_vpath)                       \
 _(SW_INTERFACE_SET_VXLAN_BYPASS, sw_interface_set_vxlan_bypass)         \
 _(SW_INTERFACE_SET_GENEVE_BYPASS, sw_interface_set_geneve_bypass)       \
 _(BOND_CREATE, bond_create)                                             \
+_(BOND_CREATE2, bond_create2)                                           \
 _(BOND_DELETE, bond_delete)                                             \
 _(BOND_ADD_MEMBER, bond_add_member)                                     \
 _(BOND_DETACH_MEMBER, bond_detach_member)                               \
