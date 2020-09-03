@@ -1,5 +1,5 @@
 /*
- * frr-router.c - frr-router vpp-api-test plug-in
+ * frr_router.c - frr_router vpp-api-test plug-in
  *
  * Copyright (c) <current-year> <your-organization>
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,30 +20,30 @@
 #include <vppinfra/error.h>
 #include <stdbool.h>
 
-#define __plugin_msg_base frr-router_test_main.msg_id_base
+#define __plugin_msg_base frr_router_test_main.msg_id_base
 #include <vlibapi/vat_helper_macros.h>
 
 uword unformat_sw_if_index (unformat_input_t * input, va_list * args);
 
 /* Declare message IDs */
-#include <frr-router/frr-router.api_enum.h>
-#include <frr-router/frr-router.api_types.h>
+#include <frr_router/frr_router.api_enum.h>
+#include <frr_router/frr_router.api_types.h>
 
 typedef struct
 {
   /* API message ID base */
   u16 msg_id_base;
   vat_main_t *vat_main;
-} frr-router_test_main_t;
+} frr_router_test_main_t;
 
-frr-router_test_main_t frr-router_test_main;
+frr_router_test_main_t frr_router_test_main;
 
-static int api_frr-router_enable_disable (vat_main_t * vam)
+static int api_frr_router_enable_disable (vat_main_t * vam)
 {
   unformat_input_t * i = vam->input;
   int enable_disable = 1;
   u32 sw_if_index = ~0;
-  vl_api_frr-router_enable_disable_t * mp;
+  vl_api_frr_router_enable_disable_t * mp;
   int ret;
 
   /* Parse args required to build the message */
@@ -66,7 +66,7 @@ static int api_frr-router_enable_disable (vat_main_t * vam)
     }
 
   /* Construct the API message */
-  M(FRR-ROUTER_ENABLE_DISABLE, mp);
+  M(FRR_ROUTER_ENABLE_DISABLE, mp);
   mp->sw_if_index = ntohl (sw_if_index);
   mp->enable_disable = enable_disable;
 
@@ -79,10 +79,10 @@ static int api_frr-router_enable_disable (vat_main_t * vam)
 }
 
 /*
- * List of messages that the frr-router test plugin sends,
+ * List of messages that the frr_router test plugin sends,
  * and that the data plane plugin processes
  */
-#include <frr-router/frr-router.api_test.c>
+#include <frr_router/frr_router.api_test.c>
 
 /*
  * fd.io coding-style-patch-verification: ON
