@@ -18,60 +18,60 @@
 #include <vnet/vnet.h>
 #include <vnet/pg/pg.h>
 #include <vppinfra/error.h>
-#include <router/router.h>
+#include <frr-router/frr-router.h>
 
 typedef struct
 {
   u32 sw_if_index;
   u32 next_index;
-} router_trace_t;
+} frr-router_trace_t;
 
 #ifndef CLIB_MARCH_VARIANT
 
 /* packet trace format function */
-static u8 * format_router_trace (u8 * s, va_list * args)
+static u8 * format_frr-router_trace (u8 * s, va_list * args)
 {
   CLIB_UNUSED (vlib_main_t * vm) = va_arg (*args, vlib_main_t *);
   CLIB_UNUSED (vlib_node_t * node) = va_arg (*args, vlib_node_t *);
-  router_trace_t * t = va_arg (*args, router_trace_t *);
+  frr-router_trace_t * t = va_arg (*args, frr-router_trace_t *);
   
-  s = format (s, "ROUTER: sw_if_index %d, next index %d\n",
+  s = format (s, "FRR-ROUTER: sw_if_index %d, next index %d\n",
               t->sw_if_index, t->next_index);
   return s;
 }
 
-vlib_node_registration_t router_node;
+vlib_node_registration_t frr-router_node;
 
 #endif /* CLIB_MARCH_VARIANT */
 
-#define foreach_router_error \
+#define foreach_frr-router_error \
 _(SWAPPED, "Mac swap packets processed")
 
 typedef enum 
 {
-#define _(sym,str) ROUTER_ERROR_##sym,
-  foreach_router_error
+#define _(sym,str) FRR-ROUTER_ERROR_##sym,
+  foreach_frr-router_error
 #undef _
-  ROUTER_N_ERROR,
-} router_error_t;
+  FRR-ROUTER_N_ERROR,
+} frr-router_error_t;
 
 #ifndef CLIB_MARCH_VARIANT
-static char * router_error_strings[] = 
+static char * frr-router_error_strings[] = 
 {
 #define _(sym,string) string,
-  foreach_router_error
+  foreach_frr-router_error
 #undef _
 };
 #endif /* CLIB_MARCH_VARIANT */
 
 typedef enum 
 {
-  ROUTER_NEXT_DROP,
-  ROUTER_N_NEXT,
-} router_next_t;
+  FRR-ROUTER_NEXT_DROP,
+  FRR-ROUTER_N_NEXT,
+} frr-router_next_t;
 
 always_inline uword
-router_inline (vlib_main_t * vm,
+frr-router_inline (vlib_main_t * vm,
      		 vlib_node_runtime_t * node, vlib_frame_t * frame,
 		 int is_ip4, int is_trace)
 {
@@ -111,28 +111,28 @@ router_inline (vlib_main_t * vm,
 	{
 	  if (b[0]->flags & VLIB_BUFFER_IS_TRACED)
 	    {
-	      router_trace_t *t = 
+	      frr-router_trace_t *t = 
                    vlib_add_trace (vm, node, b[0], sizeof (*t));
 	      t->next_index = next[0];
               t->sw_if_index = vnet_buffer(b[0])->sw_if_index[VLIB_RX];
 	    }
 	  if (b[1]->flags & VLIB_BUFFER_IS_TRACED)
 	    {
-	      router_trace_t *t = 
+	      frr-router_trace_t *t = 
                     vlib_add_trace (vm, node, b[1], sizeof (*t));
 	      t->next_index = next[1];
               t->sw_if_index = vnet_buffer(b[1])->sw_if_index[VLIB_RX];
 	    }
 	  if (b[2]->flags & VLIB_BUFFER_IS_TRACED)
 	    {
-	      router_trace_t *t = 
+	      frr-router_trace_t *t = 
                     vlib_add_trace (vm, node, b[2], sizeof (*t));
 	      t->next_index = next[2];
               t->sw_if_index = vnet_buffer(b[2])->sw_if_index[VLIB_RX];
 	    }
 	  if (b[3]->flags & VLIB_BUFFER_IS_TRACED)
 	    {
-	      router_trace_t *t = 
+	      frr-router_trace_t *t = 
                     vlib_add_trace (vm, node, b[3], sizeof (*t));
 	      t->next_index = next[3];
               t->sw_if_index = vnet_buffer(b[3])->sw_if_index[VLIB_RX];
@@ -154,7 +154,7 @@ router_inline (vlib_main_t * vm,
 	{
 	  if (b[0]->flags & VLIB_BUFFER_IS_TRACED)
 	    {
-	      router_trace_t *t = 
+	      frr-router_trace_t *t = 
                     vlib_add_trace (vm, node, b[0], sizeof (*t));
 	      t->next_index = next[0];
               t->sw_if_index = vnet_buffer(b[0])->sw_if_index[VLIB_RX];
@@ -171,34 +171,34 @@ router_inline (vlib_main_t * vm,
   return frame->n_vectors;
 }
 
-VLIB_NODE_FN (router_node) (vlib_main_t * vm, vlib_node_runtime_t * node,
+VLIB_NODE_FN (frr-router_node) (vlib_main_t * vm, vlib_node_runtime_t * node,
                              vlib_frame_t * frame)
 {
   if (PREDICT_FALSE (node->flags & VLIB_NODE_FLAG_TRACE))
-    return router_inline (vm, node, frame, 1 /* is_ip4 */ ,
+    return frr-router_inline (vm, node, frame, 1 /* is_ip4 */ ,
 			    1 /* is_trace */ );
   else
-    return router_inline (vm, node, frame, 1 /* is_ip4 */ ,
+    return frr-router_inline (vm, node, frame, 1 /* is_ip4 */ ,
 			    0 /* is_trace */ );
 }
 
 /* *INDENT-OFF* */
 #ifndef CLIB_MARCH_VARIANT
-VLIB_REGISTER_NODE (router_node) = 
+VLIB_REGISTER_NODE (frr-router_node) = 
 {
-  .name = "router",
+  .name = "frr-router",
   .vector_size = sizeof (u32),
-  .format_trace = format_router_trace,
+  .format_trace = format_frr-router_trace,
   .type = VLIB_NODE_TYPE_INTERNAL,
   
-  .n_errors = ARRAY_LEN(router_error_strings),
-  .error_strings = router_error_strings,
+  .n_errors = ARRAY_LEN(frr-router_error_strings),
+  .error_strings = frr-router_error_strings,
 
-  .n_next_nodes = ROUTER_N_NEXT,
+  .n_next_nodes = FRR-ROUTER_N_NEXT,
 
   /* edit / add dispositions here */
   .next_nodes = {
-        [ROUTER_NEXT_DROP] = "error-drop",
+        [FRR-ROUTER_NEXT_DROP] = "error-drop",
   },
 };
 #endif /* CLIB_MARCH_VARIANT */

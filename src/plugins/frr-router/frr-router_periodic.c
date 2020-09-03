@@ -1,5 +1,5 @@
 /*
- * router_periodic.c - skeleton plug-in periodic function
+ * frr-router_periodic.c - skeleton plug-in periodic function
  *
  * Copyright (c) <current-year> <your-organization>
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,22 +17,22 @@
 
 #include <vlib/vlib.h>
 #include <vppinfra/error.h>
-#include <router/router.h>
+#include <frr-router/frr-router.h>
 
 static void
-handle_event1 (router_main_t *pm, f64 now, uword event_data)
+handle_event1 (frr-router_main_t *pm, f64 now, uword event_data)
 {
-  clib_warning ("received ROUTER_EVENT1");
+  clib_warning ("received FRR-ROUTER_EVENT1");
 }
 
 static void
-handle_event2 (router_main_t *pm, f64 now, uword event_data)
+handle_event2 (frr-router_main_t *pm, f64 now, uword event_data)
 {
-  clib_warning ("received ROUTER_EVENT2");
+  clib_warning ("received FRR-ROUTER_EVENT2");
 }
 
 static void
-handle_periodic_enable_disable (router_main_t *pm, f64 now, uword event_data)
+handle_periodic_enable_disable (frr-router_main_t *pm, f64 now, uword event_data)
 {
    clib_warning ("Periodic timeouts now %s",
      event_data ? "enabled" : "disabled");
@@ -40,16 +40,16 @@ handle_periodic_enable_disable (router_main_t *pm, f64 now, uword event_data)
 }
 
 static void
-handle_timeout (router_main_t *pm, f64 now)
+handle_timeout (frr-router_main_t *pm, f64 now)
 {
   clib_warning ("timeout at %.2f", now);
 }
 
 static uword
-router_periodic_process (vlib_main_t * vm,
+frr-router_periodic_process (vlib_main_t * vm,
 	                  vlib_node_runtime_t * rt, vlib_frame_t * f)
 {
-  router_main_t *pm = &router_main;
+  frr-router_main_t *pm = &frr-router_main;
   f64 now;
   f64 timeout = 10.0;
   uword *event_data = 0;
@@ -69,19 +69,19 @@ router_periodic_process (vlib_main_t * vm,
 
       switch (event_type)
 	{
-	  /* Handle ROUTER_EVENT1 */
-	case ROUTER_EVENT1:
+	  /* Handle FRR-ROUTER_EVENT1 */
+	case FRR-ROUTER_EVENT1:
 	  for (i = 0; i < vec_len (event_data); i++)
 	    handle_event1 (pm, now, event_data[i]);
 	  break;
 
-	  /* Handle ROUTER_EVENT2 */
-	case ROUTER_EVENT2:
+	  /* Handle FRR-ROUTER_EVENT2 */
+	case FRR-ROUTER_EVENT2:
 	  for (i = 0; i < vec_len (event_data); i++)
 	    handle_event2 (pm, now, event_data[i]);
 	  break;
           /* Handle the periodic timer on/off event */
-	case ROUTER_EVENT_PERIODIC_ENABLE_DISABLE:
+	case FRR-ROUTER_EVENT_PERIODIC_ENABLE_DISABLE:
 	  for (i = 0; i < vec_len (event_data); i++)
 	    handle_periodic_enable_disable (pm, now, event_data[i]);
 	  break;
@@ -96,16 +96,16 @@ router_periodic_process (vlib_main_t * vm,
   return 0;			/* or not */
 }
 
-void router_create_periodic_process (router_main_t *rmp)
+void frr-router_create_periodic_process (frr-router_main_t *fmp)
 {
   /* Already created the process node? */
-  if (rmp->periodic_node_index > 0)
+  if (fmp->periodic_node_index > 0)
     return;
 
   /* No, create it now and make a note of the node index */
-  rmp->periodic_node_index = vlib_process_create (rmp->vlib_main,
-    "router-periodic-process",
-    router_periodic_process, 16 /* log2_n_stack_bytes */);
+  fmp->periodic_node_index = vlib_process_create (fmp->vlib_main,
+    "frr-router-periodic-process",
+    frr-router_periodic_process, 16 /* log2_n_stack_bytes */);
 }
 
 /*

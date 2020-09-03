@@ -1,6 +1,6 @@
 
 /*
- * router.h - skeleton vpp engine plug-in header file
+ * frr-router.h - skeleton vpp engine plug-in header file
  *
  * Copyright (c) <current-year> <your-organization>
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,8 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef __included_router_h__
-#define __included_router_h__
+#ifndef __included_frr-router_h__
+#define __included_frr-router_h__
 
 #include <vnet/vnet.h>
 #include <vnet/ip/ip.h>
@@ -38,21 +38,21 @@ typedef struct {
     vlib_main_t * vlib_main;
     vnet_main_t * vnet_main;
     ethernet_main_t * ethernet_main;
-} router_main_t;
+} frr-router_main_t;
 
-extern router_main_t router_main;
+extern frr-router_main_t frr-router_main;
 
-extern vlib_node_registration_t router_node;
-extern vlib_node_registration_t router_periodic_node;
+extern vlib_node_registration_t frr-router_node;
+extern vlib_node_registration_t frr-router_periodic_node;
 
 /* Periodic function events */
-#define ROUTER_EVENT1 1
-#define ROUTER_EVENT2 2
-#define ROUTER_EVENT_PERIODIC_ENABLE_DISABLE 3
+#define FRR-ROUTER_EVENT1 1
+#define FRR-ROUTER_EVENT2 2
+#define FRR-ROUTER_EVENT_PERIODIC_ENABLE_DISABLE 3
 
-void router_create_periodic_process (router_main_t *);
+void frr-router_create_periodic_process (frr-router_main_t *);
 
-#endif /* __included_router_h__ */
+#endif /* __included_frr-router_h__ */
 
 /*
  * fd.io coding-style-patch-verification: ON

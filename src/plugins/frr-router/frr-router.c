@@ -1,5 +1,5 @@
 /*
- * router.c - skeleton vpp engine plug-in
+ * frr-router.c - skeleton vpp engine plug-in
  *
  * Copyright (c) <current-year> <your-organization>
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,58 +17,58 @@
 
 #include <vnet/vnet.h>
 #include <vnet/plugin/plugin.h>
-#include <router/router.h>
+#include <frr-router/frr-router.h>
 
 #include <vlibapi/api.h>
 #include <vlibmemory/api.h>
 #include <vpp/app/version.h>
 #include <stdbool.h>
 
-#include <router/router.api_enum.h>
-#include <router/router.api_types.h>
+#include <frr-router/frr-router.api_enum.h>
+#include <frr-router/frr-router.api_types.h>
 
-#define REPLY_MSG_ID_BASE rmp->msg_id_base
+#define REPLY_MSG_ID_BASE fmp->msg_id_base
 #include <vlibapi/api_helper_macros.h>
 
-router_main_t router_main;
+frr-router_main_t frr-router_main;
 
 /* Action function shared between message handler and debug CLI */
 
-int router_enable_disable (router_main_t * rmp, u32 sw_if_index,
+int frr-router_enable_disable (frr-router_main_t * fmp, u32 sw_if_index,
                                    int enable_disable)
 {
   vnet_sw_interface_t * sw;
   int rv = 0;
 
   /* Utterly wrong? */
-  if (pool_is_free_index (rmp->vnet_main->interface_main.sw_interfaces,
+  if (pool_is_free_index (fmp->vnet_main->interface_main.sw_interfaces,
                           sw_if_index))
     return VNET_API_ERROR_INVALID_SW_IF_INDEX;
 
   /* Not a physical port? */
-  sw = vnet_get_sw_interface (rmp->vnet_main, sw_if_index);
+  sw = vnet_get_sw_interface (fmp->vnet_main, sw_if_index);
   if (sw->type != VNET_SW_INTERFACE_TYPE_HARDWARE)
     return VNET_API_ERROR_INVALID_SW_IF_INDEX;
 
-  router_create_periodic_process (rmp);
+  frr-router_create_periodic_process (fmp);
 
-  vnet_feature_enable_disable ("device-input", "router",
+  vnet_feature_enable_disable ("device-input", "frr-router",
                                sw_if_index, enable_disable, 0, 0);
 
   /* Send an event to enable/disable the periodic scanner process */
-  vlib_process_signal_event (rmp->vlib_main,
-                             rmp->periodic_node_index,
-                             ROUTER_EVENT_PERIODIC_ENABLE_DISABLE,
+  vlib_process_signal_event (fmp->vlib_main,
+                             fmp->periodic_node_index,
+                             FRR-ROUTER_EVENT_PERIODIC_ENABLE_DISABLE,
                             (uword)enable_disable);
   return rv;
 }
 
 static clib_error_t *
-router_enable_disable_command_fn (vlib_main_t * vm,
+frr-router_enable_disable_command_fn (vlib_main_t * vm,
                                    unformat_input_t * input,
                                    vlib_cli_command_t * cmd)
 {
-  router_main_t * rmp = &router_main;
+  frr-router_main_t * fmp = &frr-router_main;
   u32 sw_if_index = ~0;
   int enable_disable = 1;
 
@@ -79,7 +79,7 @@ router_enable_disable_command_fn (vlib_main_t * vm,
       if (unformat (input, "disable"))
         enable_disable = 0;
       else if (unformat (input, "%U", unformat_vnet_sw_interface,
-                         rmp->vnet_main, &sw_if_index))
+                         fmp->vnet_main, &sw_if_index))
         ;
       else
         break;
@@ -88,7 +88,7 @@ router_enable_disable_command_fn (vlib_main_t * vm,
   if (sw_if_index == ~0)
     return clib_error_return (0, "Please specify an interface...");
 
-  rv = router_enable_disable (rmp, sw_if_index, enable_disable);
+  rv = frr-router_enable_disable (fmp, sw_if_index, enable_disable);
 
   switch(rv)
     {
@@ -105,60 +105,60 @@ router_enable_disable_command_fn (vlib_main_t * vm,
     break;
 
   default:
-    return clib_error_return (0, "router_enable_disable returned %d",
+    return clib_error_return (0, "frr-router_enable_disable returned %d",
                               rv);
     }
   return 0;
 }
 
 /* *INDENT-OFF* */
-VLIB_CLI_COMMAND (router_enable_disable_command, static) =
+VLIB_CLI_COMMAND (frr-router_enable_disable_command, static) =
 {
-  .path = "router enable-disable",
+  .path = "frr-router enable-disable",
   .short_help =
-  "router enable-disable <interface-name> [disable]",
-  .function = router_enable_disable_command_fn,
+  "frr-router enable-disable <interface-name> [disable]",
+  .function = frr-router_enable_disable_command_fn,
 };
 /* *INDENT-ON* */
 
 /* API message handler */
-static void vl_api_router_enable_disable_t_handler
-(vl_api_router_enable_disable_t * mp)
+static void vl_api_frr-router_enable_disable_t_handler
+(vl_api_frr-router_enable_disable_t * mp)
 {
-  vl_api_router_enable_disable_reply_t * rmp;
-  router_main_t * rmp = &router_main;
+  vl_api_frr-router_enable_disable_reply_t * rmp;
+  frr-router_main_t * fmp = &frr-router_main;
   int rv;
 
-  rv = router_enable_disable (rmp, ntohl(mp->sw_if_index),
+  rv = frr-router_enable_disable (fmp, ntohl(mp->sw_if_index),
                                       (int) (mp->enable_disable));
 
-  REPLY_MACRO(VL_API_ROUTER_ENABLE_DISABLE_REPLY);
+  REPLY_MACRO(VL_API_FRR-ROUTER_ENABLE_DISABLE_REPLY);
 }
 
 /* API definitions */
-#include <router/router.api.c>
+#include <frr-router/frr-router.api.c>
 
-static clib_error_t * router_init (vlib_main_t * vm)
+static clib_error_t * frr-router_init (vlib_main_t * vm)
 {
-  router_main_t * rmp = &router_main;
+  frr-router_main_t * fmp = &frr-router_main;
   clib_error_t * error = 0;
 
-  rmp->vlib_main = vm;
-  rmp->vnet_main = vnet_get_main();
+  fmp->vlib_main = vm;
+  fmp->vnet_main = vnet_get_main();
 
   /* Add our API messages to the global name_crc hash table */
-  rmp->msg_id_base = setup_message_id_table ();
+  fmp->msg_id_base = setup_message_id_table ();
 
   return error;
 }
 
-VLIB_INIT_FUNCTION (router_init);
+VLIB_INIT_FUNCTION (frr-router_init);
 
 /* *INDENT-OFF* */
-VNET_FEATURE_INIT (router, static) =
+VNET_FEATURE_INIT (frr-router, static) =
 {
   .arc_name = "device-input",
-  .node_name = "router",
+  .node_name = "frr-router",
   .runs_before = VNET_FEATURES ("ethernet-input"),
 };
 /* *INDENT-ON */
@@ -167,7 +167,7 @@ VNET_FEATURE_INIT (router, static) =
 VLIB_PLUGIN_REGISTER () =
 {
   .version = VPP_BUILD_VER,
-  .description = "router plugin description goes here",
+  .description = "frr-router plugin description goes here",
 };
 /* *INDENT-ON* */
 
