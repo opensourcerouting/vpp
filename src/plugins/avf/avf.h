@@ -200,8 +200,10 @@ typedef struct
 typedef enum
 {
   AVF_PROCESS_EVENT_START = 1,
-  AVF_PROCESS_EVENT_STOP = 2,
+  AVF_PROCESS_EVENT_DELETE_IF = 2,
   AVF_PROCESS_EVENT_AQ_INT = 3,
+  AVF_PROCESS_EVENT_SET_PROMISC_ENABLE = 4,
+  AVF_PROCESS_EVENT_SET_PROMISC_DISABLE = 5,
 } avf_process_event_t;
 
 typedef struct
@@ -223,7 +225,7 @@ typedef struct
 {
   u16 msg_id_base;
 
-  avf_device_t *devices;
+  avf_device_t **devices;
   avf_per_thread_data_t *per_thread_data;
 
   vlib_log_class_t log_class;
@@ -246,15 +248,21 @@ typedef struct
 } avf_create_if_args_t;
 
 void avf_create_if (vlib_main_t * vm, avf_create_if_args_t * args);
-void avf_delete_if (vlib_main_t * vm, avf_device_t * ad);
 
 extern vlib_node_registration_t avf_input_node;
+extern vlib_node_registration_t avf_process_node;
 extern vnet_device_class_t avf_device_class;
 
 /* format.c */
 format_function_t format_avf_device;
 format_function_t format_avf_device_name;
 format_function_t format_avf_input_trace;
+
+static_always_inline avf_device_t *
+avf_get_device (u32 dev_instance)
+{
+  return pool_elt_at_index (avf_main.devices, dev_instance)[0];
+}
 
 static inline u32
 avf_get_u32 (void *start, int offset)
