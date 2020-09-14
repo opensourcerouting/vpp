@@ -202,7 +202,7 @@ vcl_send_session_listen (vcl_worker_t * wrk, vcl_session_t * s)
   app_alloc_ctrl_evt_to_vpp (mq, app_evt, SESSION_CTRL_EVT_LISTEN);
   mp = (session_listen_msg_t *) app_evt->evt->data;
   memset (mp, 0, sizeof (*mp));
-  mp->client_index = wrk->my_client_index;
+  mp->client_index = wrk->bapi_client_index;
   mp->context = s->session_index;
   mp->wrk_index = wrk->vpp_wrk_index;
   mp->is_ip4 = s->transport.is_ip4;
@@ -225,7 +225,7 @@ vcl_send_session_connect (vcl_worker_t * wrk, vcl_session_t * s)
   app_alloc_ctrl_evt_to_vpp (mq, app_evt, SESSION_CTRL_EVT_CONNECT);
   mp = (session_connect_msg_t *) app_evt->evt->data;
   memset (mp, 0, sizeof (*mp));
-  mp->client_index = wrk->my_client_index;
+  mp->client_index = wrk->bapi_client_index;
   mp->context = s->session_index;
   mp->wrk_index = wrk->vpp_wrk_index;
   mp->is_ip4 = s->transport.is_ip4;
@@ -251,7 +251,7 @@ vcl_send_session_unlisten (vcl_worker_t * wrk, vcl_session_t * s)
   app_alloc_ctrl_evt_to_vpp (mq, app_evt, SESSION_CTRL_EVT_UNLISTEN);
   mp = (session_unlisten_msg_t *) app_evt->evt->data;
   memset (mp, 0, sizeof (*mp));
-  mp->client_index = wrk->my_client_index;
+  mp->client_index = wrk->bapi_client_index;
   mp->wrk_index = wrk->vpp_wrk_index;
   mp->handle = s->vpp_handle;
   mp->context = wrk->wrk_index;
@@ -270,7 +270,7 @@ vcl_send_session_disconnect (vcl_worker_t * wrk, vcl_session_t * s)
   app_alloc_ctrl_evt_to_vpp (mq, app_evt, SESSION_CTRL_EVT_DISCONNECT);
   mp = (session_disconnect_msg_t *) app_evt->evt->data;
   memset (mp, 0, sizeof (*mp));
-  mp->client_index = wrk->my_client_index;
+  mp->client_index = wrk->bapi_client_index;
   mp->handle = s->vpp_handle;
   app_send_ctrl_evt_to_vpp (mq, app_evt);
 }
@@ -286,7 +286,7 @@ vcl_send_app_detach (vcl_worker_t * wrk)
   app_alloc_ctrl_evt_to_vpp (mq, app_evt, SESSION_CTRL_EVT_APP_DETACH);
   mp = (session_app_detach_msg_t *) app_evt->evt->data;
   memset (mp, 0, sizeof (*mp));
-  mp->client_index = wrk->my_client_index;
+  mp->client_index = wrk->bapi_client_index;
   app_send_ctrl_evt_to_vpp (mq, app_evt);
 }
 
@@ -344,7 +344,7 @@ vcl_send_session_worker_update (vcl_worker_t * wrk, vcl_session_t * s,
   mq = vcl_session_vpp_evt_q (wrk, s);
   app_alloc_ctrl_evt_to_vpp (mq, app_evt, SESSION_CTRL_EVT_WORKER_UPDATE);
   mp = (session_worker_update_msg_t *) app_evt->evt->data;
-  mp->client_index = wrk->my_client_index;
+  mp->client_index = wrk->bapi_client_index;
   mp->handle = s->vpp_handle;
   mp->req_wrk_index = wrk->vpp_wrk_index;
   mp->wrk_index = wrk_index;
@@ -373,7 +373,7 @@ vcl_send_worker_rpc (u32 dst_wrk_index, void *data, u32 data_len)
   mq = vcl_worker_ctrl_mq (wrk);
   app_alloc_ctrl_evt_to_vpp (mq, app_evt, SESSION_CTRL_EVT_APP_WRK_RPC);
   mp = (session_app_wrk_rpc_msg_t *) app_evt->evt->data;
-  mp->client_index = wrk->my_client_index;
+  mp->client_index = wrk->bapi_client_index;
   mp->wrk_index = dst_wrk->vpp_wrk_index;
   clib_memcpy (mp->data, data, data_len);
   app_send_ctrl_evt_to_vpp (mq, app_evt);
@@ -863,6 +863,16 @@ vcl_session_worker_update_reply_handler (vcl_worker_t * wrk, void *data)
 	s->vpp_handle, wrk->wrk_index);
 }
 
+static int
+vcl_api_recv_fd (vcl_worker_t * wrk, int *fds, int n_fds)
+{
+
+  if (vcm->cfg.vpp_app_socket_api)
+    return vcl_sapi_recv_fds (wrk, fds, n_fds);
+
+  return vcl_bapi_recv_fds (wrk, fds, n_fds);
+}
+
 static void
 vcl_session_app_add_segment_handler (vcl_worker_t * wrk, void *data)
 {
@@ -875,7 +885,7 @@ vcl_session_app_add_segment_handler (vcl_worker_t * wrk, void *data)
 
   if (msg->fd_flags)
     {
-      vl_socket_client_recv_fd_msg2 (&wrk->bapi_sock_ctx, &fd, 1, 5);
+      vcl_api_recv_fd (wrk, &fd, 1);
       seg_type = SSVM_SEGMENT_MEMFD;
     }
 
@@ -1072,42 +1082,6 @@ vcl_flush_mq_events (void)
 }
 
 static int
-vppcom_app_session_enable (void)
-{
-  int rv;
-
-  if (vcm->app_state != STATE_APP_ENABLED)
-    {
-      vppcom_send_session_enable_disable (1 /* is_enabled == TRUE */ );
-      rv = vcl_wait_for_app_state_change (STATE_APP_ENABLED);
-      if (PREDICT_FALSE (rv))
-	{
-	  VDBG (0, "application session enable timed out! returning %d (%s)",
-		rv, vppcom_retval_str (rv));
-	  return rv;
-	}
-    }
-  return VPPCOM_OK;
-}
-
-static int
-vppcom_app_attach (void)
-{
-  int rv;
-
-  vppcom_app_send_attach ();
-  rv = vcl_wait_for_app_state_change (STATE_APP_ATTACHED);
-  if (PREDICT_FALSE (rv))
-    {
-      VDBG (0, "application attach timed out! returning %d (%s)", rv,
-	    vppcom_retval_str (rv));
-      return rv;
-    }
-
-  return VPPCOM_OK;
-}
-
-static int
 vppcom_session_unbind (u32 session_handle)
 {
   vcl_worker_t *wrk = vcl_worker_get_current ();
@@ -1171,7 +1145,7 @@ vppcom_session_disconnect (u32 session_handle)
   if (state & STATE_VPP_CLOSING)
     {
       vpp_evt_q = vcl_session_vpp_evt_q (wrk, session);
-      vcl_send_session_disconnected_reply (vpp_evt_q, wrk->my_client_index,
+      vcl_send_session_disconnected_reply (vpp_evt_q, wrk->bapi_client_index,
 					   vpp_handle, 0);
       VDBG (1, "session %u [0x%llx]: sending disconnect REPLY...",
 	    session->session_index, vpp_handle);
@@ -1214,6 +1188,26 @@ vppcom_app_exit (void)
   vcl_elog_stop (vcm);
 }
 
+static int
+vcl_api_attach (void)
+{
+  if (vcm->cfg.vpp_app_socket_api)
+    return vcl_sapi_attach ();
+
+  return vcl_bapi_attach ();
+}
+
+static void
+vcl_api_detach (vcl_worker_t * wrk)
+{
+  vcl_send_app_detach (wrk);
+
+  if (vcm->cfg.vpp_app_socket_api)
+    return vcl_sapi_detach (wrk);
+
+  return vcl_bapi_disconnect_from_vpp ();
+}
+
 /*
  * VPPCOM Public API functions
  */
@@ -1236,44 +1230,22 @@ vppcom_app_create (const char *app_name)
   vcm->main_cpu = pthread_self ();
   vcm->main_pid = getpid ();
   vcm->app_name = format (0, "%s", app_name);
-  vppcom_init_error_string_table ();
   fifo_segment_main_init (&vcm->segment_main, vcl_cfg->segment_baseva,
 			  20 /* timeout in secs */ );
   pool_alloc (vcm->workers, vcl_cfg->max_workers);
   clib_spinlock_init (&vcm->workers_lock);
   clib_rwlock_init (&vcm->segment_table_lock);
   atexit (vppcom_app_exit);
+  vcl_elog_init (vcm);
 
   /* Allocate default worker */
   vcl_worker_alloc_and_init ();
 
-  /* API hookup and connect to VPP */
-  vcl_elog_init (vcm);
-  vcm->app_state = STATE_APP_START;
-  rv = vppcom_connect_to_vpp (app_name);
-  if (rv)
-    {
-      VERR ("couldn't connect to VPP!");
-      return rv;
-    }
-  VDBG (0, "sending session enable");
-  rv = vppcom_app_session_enable ();
-  if (rv)
-    {
-      VERR ("vppcom_app_session_enable() failed!");
-      return rv;
-    }
-
-  VDBG (0, "sending app attach");
-  rv = vppcom_app_attach ();
-  if (rv)
-    {
-      VERR ("vppcom_app_attach() failed!");
-      return rv;
-    }
+  if ((rv = vcl_api_attach ()))
+    return rv;
 
   VDBG (0, "app_name '%s', my_client_index %d (0x%x)", app_name,
-	vcm->workers[0].my_client_index, vcm->workers[0].my_client_index);
+	vcm->workers[0].bapi_client_index, vcm->workers[0].bapi_client_index);
 
   return VPPCOM_OK;
 }
@@ -1299,8 +1271,7 @@ vppcom_app_destroy (void)
   }));
   /* *INDENT-ON* */
 
-  vcl_send_app_detach (current_wrk);
-  vppcom_disconnect_from_vpp ();
+  vcl_api_detach (current_wrk);
   vcl_worker_cleanup (current_wrk, 0 /* notify vpp */ );
 
   vcl_elog_stop (vcm);
@@ -1410,7 +1381,7 @@ vcl_session_cleanup (vcl_worker_t * wrk, vcl_session_t * session,
   else if (state == STATE_DISCONNECT)
     {
       svm_msg_q_t *mq = vcl_session_vpp_evt_q (wrk, session);
-      vcl_send_session_reset_reply (mq, wrk->my_client_index,
+      vcl_send_session_reset_reply (mq, wrk->bapi_client_index,
 				    session->vpp_handle, 0);
     }
   else if (state == STATE_DETACHED)
@@ -1533,52 +1504,6 @@ vppcom_session_listen (uint32_t listen_sh, uint32_t q_len)
       return rv;
     }
 
-  return VPPCOM_OK;
-}
-
-int
-vppcom_session_tls_add_cert (uint32_t session_handle, char *cert,
-			     uint32_t cert_len)
-{
-
-  vcl_worker_t *wrk = vcl_worker_get_current ();
-  vcl_session_t *session = 0;
-
-  session = vcl_session_get_w_handle (wrk, session_handle);
-  if (!session)
-    return VPPCOM_EBADFD;
-
-  if (cert_len == 0 || cert_len == ~0)
-    return VPPCOM_EBADFD;
-
-  /*
-   * Send listen request to vpp and wait for reply
-   */
-  vppcom_send_application_tls_cert_add (session, cert, cert_len);
-  vcm->app_state = STATE_APP_ADDING_TLS_DATA;
-  vcl_wait_for_app_state_change (STATE_APP_READY);
-  return VPPCOM_OK;
-
-}
-
-int
-vppcom_session_tls_add_key (uint32_t session_handle, char *key,
-			    uint32_t key_len)
-{
-
-  vcl_worker_t *wrk = vcl_worker_get_current ();
-  vcl_session_t *session = 0;
-
-  session = vcl_session_get_w_handle (wrk, session_handle);
-  if (!session)
-    return VPPCOM_EBADFD;
-
-  if (key_len == 0 || key_len == ~0)
-    return VPPCOM_EBADFD;
-
-  vppcom_send_application_tls_key_add (session, key, key_len);
-  vcm->app_state = STATE_APP_ADDING_TLS_DATA;
-  vcl_wait_for_app_state_change (STATE_APP_READY);
   return VPPCOM_OK;
 }
 
@@ -1892,7 +1817,7 @@ vppcom_session_read_internal (uint32_t session_handle, void *buf, int n,
 			      u8 peek)
 {
   vcl_worker_t *wrk = vcl_worker_get_current ();
-  int n_read = 0, is_nonblocking;
+  int rv, n_read = 0, is_nonblocking;
   vcl_session_t *s = 0;
   svm_fifo_t *rx_fifo;
   svm_msg_q_msg_t msg;
@@ -1949,10 +1874,15 @@ vppcom_session_read_internal (uint32_t session_handle, void *buf, int n,
 	}
     }
 
+read_again:
+
   if (s->is_dgram)
-    n_read = app_recv_dgram_raw (rx_fifo, buf, n, &s->transport, 0, peek);
+    rv = app_recv_dgram_raw (rx_fifo, buf, n, &s->transport, 0, peek);
   else
-    n_read = app_recv_stream_raw (rx_fifo, buf, n, 0, peek);
+    rv = app_recv_stream_raw (rx_fifo, buf, n, 0, peek);
+
+  ASSERT (rv >= 0);
+  n_read += rv;
 
   if (svm_fifo_is_empty_cons (rx_fifo))
     {
@@ -1960,11 +1890,18 @@ vppcom_session_read_internal (uint32_t session_handle, void *buf, int n,
       if (!svm_fifo_is_empty_cons (rx_fifo)
 	  && svm_fifo_set_event (s->rx_fifo) && is_nonblocking)
 	{
-	  session_event_t *e;
 	  vec_add2 (wrk->unhandled_evts_vector, e, 1);
 	  e->event_type = SESSION_IO_EVT_RX;
 	  e->session_index = s->session_index;
 	}
+    }
+  else if (PREDICT_FALSE (rv < n))
+    {
+      /* More data enqueued while reading. Try to drain it
+       * or fill the buffer */
+      buf += rv;
+      n -= rv;
+      goto read_again;
     }
 
   if (PREDICT_FALSE (svm_fifo_needs_deq_ntf (rx_fifo, n_read)))
@@ -3897,21 +3834,8 @@ vppcom_session_worker (vcl_session_handle_t session_handle)
 int
 vppcom_worker_register (void)
 {
-  vcl_worker_t *wrk;
-  u8 *wrk_name = 0;
-  int rv;
-
   if (!vcl_worker_alloc_and_init ())
     return VPPCOM_EEXIST;
-
-  wrk = vcl_worker_get_current ();
-  wrk_name = format (0, "%s-wrk-%u", vcm->app_name, wrk->wrk_index);
-
-  rv = vppcom_connect_to_vpp ((char *) wrk_name);
-  vec_free (wrk_name);
-
-  if (rv)
-    return VPPCOM_EFAULT;
 
   if (vcl_worker_register_with_vpp ())
     return VPPCOM_EEXIST;
