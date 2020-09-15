@@ -25,6 +25,8 @@
 #include <vppinfra/hash.h>
 #include <vppinfra/error.h>
 
+#include <punt_inject_router/tap_inject.h>
+
 typedef struct {
     /* API message ID base */
     u16 msg_id_base;

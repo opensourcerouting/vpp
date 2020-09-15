@@ -189,7 +189,7 @@ VLIB_REGISTER_NODE (punt_inject_router_node) =
   .name = "punt_inject_router",
   .vector_size = sizeof (u32),
   .format_trace = format_punt_inject_router_trace,
-  .type = VLIB_NODE_TYPE_INTERNAL,
+  .type = VLIB_NODE_TYPE_INPUT,
   
   .n_errors = ARRAY_LEN(punt_inject_router_error_strings),
   .error_strings = punt_inject_router_error_strings,
