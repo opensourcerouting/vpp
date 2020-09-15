@@ -25,9 +25,9 @@
 #include <vppinfra/hash.h>
 #include <vppinfra/error.h>
 
-#include "rtnl.h"
-#include "netns.h"
-#include "mapper.h"
+#include <netlink/rtnl.h>
+#include <netlink/netns.h>
+#include <netlink/mapper.h>
 
 typedef struct {
     /* API message ID base */

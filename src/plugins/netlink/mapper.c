@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#include <librtnl/mapper.h>
-#include <librtnl/netns.h>
+#include <netlink/mapper.h>
+#include <netlink/netns.h>
 
 #include <vnet/ip/ip.h>
 #include <vnet/ip/lookup.h>

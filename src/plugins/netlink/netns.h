@@ -23,7 +23,7 @@
 #include <linux/netlink.h>
 #include <net/if.h>
 
-#include "rtnl.h"
+#include <netlink/rtnl.h>
 
 /*include it for 'struct mpls_label'*/
 #include <linux/mpls.h>

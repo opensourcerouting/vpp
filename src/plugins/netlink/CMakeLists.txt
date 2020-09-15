@@ -17,7 +17,14 @@ add_vpp_plugin(netlink
   netlink.c
   node.c
   netlink_periodic.c
+  rtnl.h
+  netns.h
+  mapper.h
   netlink.h
+  rtnl.c
+  netns.c
+  mapper.c
+  
 
   MULTIARCH_SOURCES
   node.c

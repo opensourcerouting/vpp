@@ -149,19 +149,12 @@ static clib_error_t * netlink_init (vlib_main_t * vm)
   /* Add our API messages to the global name_crc hash table */
   nmp->msg_id_base = setup_message_id_table ();
 
+  
   return error;
 }
 
 VLIB_INIT_FUNCTION (netlink_init);
 
-/* *INDENT-OFF* */
-VNET_FEATURE_INIT (netlink, static) =
-{
-  .arc_name = "device-input",
-  .node_name = "netlink",
-  .runs_before = VNET_FEATURES ("ethernet-input"),
-};
-/* *INDENT-ON */
 
 /* *INDENT-OFF* */
 VLIB_PLUGIN_REGISTER () =

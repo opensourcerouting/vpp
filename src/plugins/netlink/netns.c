@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include <librtnl/netns.h>
+#include <netlink/netns.h>
 
 #include <vnet/ip/format.h>
 #include <vnet/ethernet/ethernet.h>

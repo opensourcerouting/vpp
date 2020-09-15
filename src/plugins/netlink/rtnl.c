@@ -16,8 +16,8 @@
 #define _GNU_SOURCE
 #include <sched.h>
 
-#include <librtnl/rtnl.h>
-#include <librtnl/netns.h>
+#include <netlink/rtnl.h>
+#include <netlink/netns.h>
 
 #include <vlib/vlib.h>
 #include <vlib/unix/unix.h>
@@ -497,7 +497,7 @@ rtnl_process_timeout(rtnl_ns_t *ns)
   }
 }
 
-static uword
+uword
 rtnl_process (vlib_main_t * vm,
               vlib_node_runtime_t * node,
               vlib_frame_t * frame)
@@ -553,11 +553,6 @@ rtnl_process (vlib_main_t * vm,
   return frame->n_vectors;
 }
 
-VLIB_REGISTER_NODE(rtnl_process_node, static) = {
-  .function = rtnl_process,
-  .name = "rtnl-process",
-  .type = VLIB_NODE_TYPE_PROCESS,
-};
 
 u32
 rtnl_stream_open(rtnl_stream_t *template)
