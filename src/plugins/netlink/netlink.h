@@ -25,6 +25,10 @@
 #include <vppinfra/hash.h>
 #include <vppinfra/error.h>
 
+#include "rtnl.h"
+#include "netns.h"
+#include "mapper.h"
+
 typedef struct {
     /* API message ID base */
     u16 msg_id_base;
