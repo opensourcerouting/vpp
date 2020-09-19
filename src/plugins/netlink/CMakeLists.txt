@@ -14,24 +14,11 @@
 
 add_vpp_plugin(netlink
   SOURCES
-  netlink.c
-  node.c
-  netlink_periodic.c
   rtnl.h
   netns.h
   mapper.h
-  netlink.h
   rtnl.c
   netns.c
   mapper.c
   
-
-  MULTIARCH_SOURCES
-  node.c
-
-  API_FILES
-  netlink.api
-
-  API_TEST_SOURCES
-  netlink_test.c
 )

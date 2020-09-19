@@ -14,16 +14,21 @@
  * limitations under the License.
  */
 
-#include <vlib/vlib.h>
-#include <vlib/buffer.h>
-
-#include <punt_inject_router/tap_inject.h>
+#include "tap_inject.h"
 
 #include <netinet/in.h>
 #include <vnet/ethernet/arp_packet.h>
 
 #include <sys/uio.h>
 
+vlib_node_registration_t tap_inject_rx_node;
+vlib_node_registration_t tap_inject_tx_node;
+vlib_node_registration_t tap_inject_neighbor_node;
+
+enum {
+  NEXT_NEIGHBOR_ARP,
+  NEXT_NEIGHBOR_ICMP6,
+};
 
 /**
  * @brief Dynamically added tap_inject DPO type
@@ -47,7 +52,7 @@ tap_inject_tap_send_buffer (int fd, vlib_buffer_t * b)
     clib_warning ("buffer truncated");
 }
 
-uword
+static uword
 tap_inject_tx (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * f)
 {
   vlib_buffer_t * b;
@@ -75,9 +80,15 @@ tap_inject_tx (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * f)
   return f->n_vectors;
 }
 
+VLIB_REGISTER_NODE (tap_inject_tx_node) = {
+  .function = tap_inject_tx,
+  .name = "tap-inject-tx",
+  .vector_size = sizeof (u32),
+  .type = VLIB_NODE_TYPE_INTERNAL,
+};
 
 
-uword
+static uword
 tap_inject_neighbor (vlib_main_t * vm,
                      vlib_node_runtime_t * node, vlib_frame_t * f)
 {
@@ -154,6 +165,18 @@ tap_inject_neighbor (vlib_main_t * vm,
 
   return f->n_vectors;
 }
+
+VLIB_REGISTER_NODE (tap_inject_neighbor_node) = {
+  .function = tap_inject_neighbor,
+  .name = "tap-inject-neighbor",
+  .vector_size = sizeof (u32),
+  .type = VLIB_NODE_TYPE_INTERNAL,
+  .n_next_nodes = 2,
+  .next_nodes = {
+    [NEXT_NEIGHBOR_ARP] = "arp-input",
+    [NEXT_NEIGHBOR_ICMP6] = "icmp6-neighbor-solicitation",
+  },
+};
 
 
 #define MTU 1500
@@ -261,7 +284,7 @@ tap_rx (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * f, int fd)
   return 1;
 }
 
-uword
+static uword
 tap_inject_rx (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * f)
 {
   tap_inject_main_t * im = tap_inject_get_main ();
@@ -284,6 +307,13 @@ tap_inject_rx (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * f)
   return count;
 }
 
+VLIB_REGISTER_NODE (tap_inject_rx_node) = {
+  .function = tap_inject_rx,
+  .name = "tap-inject-rx",
+  .type = VLIB_NODE_TYPE_INPUT,
+  .state = VLIB_NODE_STATE_INTERRUPT,
+  .vector_size = sizeof (u32),
+};
 
 /**
  * @brief no-op lock function.

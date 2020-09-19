@@ -118,14 +118,6 @@ tap_inject_enable (void)
   if (tap_inject_is_enabled ())
     return 0;
 
-  tap_inject_enable_netlink ();
-
-  /* Only enable netlink? */
-  if (im->flags & TAP_INJECT_F_CONFIG_NETLINK)
-    {
-      im->flags |= TAP_INJECT_F_ENABLED;
-      return 0;
-    }
 
   /* Register ARP and ICMP6 as neighbor nodes. */
   ethernet_register_input_type (vm, ETHERNET_TYPE_ARP, im->neighbor_node_index);
@@ -364,9 +356,6 @@ tap_inject_config (vlib_main_t * vm, unformat_input_t * input)
 
       else if (unformat (input, "disable"))
         im->flags |= TAP_INJECT_F_CONFIG_DISABLE;
-
-      else if (unformat (input, "netlink-only"))
-        im->flags |= TAP_INJECT_F_CONFIG_NETLINK;
 
       else
         return clib_error_return (0, "syntax error `%U'",

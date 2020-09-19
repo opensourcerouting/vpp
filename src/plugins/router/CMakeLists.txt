@@ -12,19 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-add_vpp_plugin(frr_router
+add_vpp_plugin(router
   SOURCES
-  frr_router.c
-  node.c
-  frr_router_periodic.c
-  frr_router.h
+  tap_inject.c
+  tap_inject_node.c
+  tap_inject_tap.c
+  tap_inject.h
+  
 
-  MULTIARCH_SOURCES
-  node.c
 
-  API_FILES
-  frr_router.api
-
-  API_TEST_SOURCES
-  frr_router_test.c
 )

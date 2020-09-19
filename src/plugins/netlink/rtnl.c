@@ -497,7 +497,7 @@ rtnl_process_timeout(rtnl_ns_t *ns)
   }
 }
 
-uword
+static uword
 rtnl_process (vlib_main_t * vm,
               vlib_node_runtime_t * node,
               vlib_frame_t * frame)
@@ -553,6 +553,11 @@ rtnl_process (vlib_main_t * vm,
   return frame->n_vectors;
 }
 
+VLIB_REGISTER_NODE(rtnl_process_node, static) = {
+  .function = rtnl_process,
+  .name = "rtnl-process",
+  .type = VLIB_NODE_TYPE_PROCESS,
+};
 
 u32
 rtnl_stream_open(rtnl_stream_t *template)

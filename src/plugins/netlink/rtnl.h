@@ -47,9 +47,6 @@ typedef struct rtnl_stream_s {
 u32 rtnl_stream_open(rtnl_stream_t *template);
 void rtnl_stream_close(u32 handle);
 
-uword rtnl_process(vlib_main_t * vm, vlib_node_runtime_t * node,
-		   vlib_frame_t * frame);
-
 /*
  * Executes a function in a synchronously executed thread in the
  * given namespace.

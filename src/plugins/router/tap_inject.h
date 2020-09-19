@@ -17,6 +17,9 @@
 #ifndef _TAP_INJECT_H
 #define _TAP_INJECT_H
 
+#include <vlib/vlib.h>
+#include <vlib/buffer.h>
+
 #include <vnet/plugin/plugin.h>
 #include <vnet/ip/ip.h>
 
@@ -29,14 +32,10 @@ typedef struct {
    * tap-inject can be enabled or disabled in config file or during runtime.
    * When disabled in config, it is not possible to enable during runtime.
    *
-   * When the netlink-only option is used, netlink configuration is monitored
-   * and mirrored to the data plane but no traffic is passed between the host
-   * and the data plane.
    */
 #define TAP_INJECT_F_CONFIG_ENABLE  (1U << 0)
 #define TAP_INJECT_F_CONFIG_DISABLE (1U << 1)
-#define TAP_INJECT_F_CONFIG_NETLINK (1U << 2)
-#define TAP_INJECT_F_ENABLED        (1U << 3)
+#define TAP_INJECT_F_ENABLED        (1U << 2)
 
   u32 flags;
 
@@ -57,11 +56,6 @@ typedef struct {
   u32 * rx_buffers;
 
 } tap_inject_main_t;
-
-enum {
-  NEXT_NEIGHBOR_ARP,
-  NEXT_NEIGHBOR_ICMP6,
-};
 
 
 tap_inject_main_t * tap_inject_get_main (void);
@@ -98,31 +92,11 @@ tap_inject_is_config_disabled (void)
 }
 
 
-/* Netlink */
-
-void tap_inject_enable_netlink (void);
-
-
 /* Tap */
 
 clib_error_t * tap_inject_tap_connect (vnet_hw_interface_t * hw);
 clib_error_t * tap_inject_tap_disconnect (u32 sw_if_index);
 
 u8 * format_tap_inject_tap_name (u8 * s, va_list * args);
-
-/* Node */
-
-extern vlib_node_registration_t tap_inject_rx_node;
-extern vlib_node_registration_t tap_inject_tx_node;
-extern vlib_node_registration_t tap_inject_neighbor_node;
-
-uword tap_inject_tx (vlib_main_t * vm, vlib_node_runtime_t * node,
-		     vlib_frame_t * f);
-
-uword tap_inject_neighbor (vlib_main_t * vm, vlib_node_runtime_t * node,
-			   vlib_frame_t * f);
-
-uword tap_inject_rx (vlib_main_t * vm, vlib_node_runtime_t * node,
-		     vlib_frame_t * f);
 
 #endif /* _TAP_INJECT_H */
