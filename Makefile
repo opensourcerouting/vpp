@@ -62,7 +62,7 @@ endif
 # +libganglia1-dev if building the gmond plugin
 
 DEB_DEPENDS  = curl build-essential autoconf automake ccache
-DEB_DEPENDS += debhelper dkms git libtool libapr1-dev dh-systemd
+DEB_DEPENDS += debhelper dkms git libtool libapr1-dev dh-systemd dh-python
 DEB_DEPENDS += libconfuse-dev git-review exuberant-ctags cscope pkg-config
 DEB_DEPENDS += lcov chrpath autoconf indent clang-format libnuma-dev
 DEB_DEPENDS += python3-all python3-setuptools check
@@ -110,6 +110,7 @@ RPM_DEPENDS += libuuid-devel
 RPM_DEPENDS += mbedtls-devel
 RPM_DEPENDS += ccache
 RPM_DEPENDS += xmlto
+RPM_DEPENDS += elfutils-libelf-devel
 
 ifeq ($(OS_ID),fedora)
 	RPM_DEPENDS += dnf-utils

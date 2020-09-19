@@ -46,12 +46,21 @@
 #define F_SEAL_WRITE    0x0008	/* prevent writes */
 #endif
 
+#ifndef MFD_HUGETLB
+#define MFD_HUGETLB 0x0004U
+#endif
 
-uword
-clib_mem_get_page_size (void)
-{
-  return getpagesize ();
-}
+#ifndef MAP_HUGE_SHIFT
+#define MAP_HUGE_SHIFT 26
+#endif
+
+#ifndef MFD_HUGE_SHIFT
+#define MFD_HUGE_SHIFT 26
+#endif
+
+#ifndef MAP_FIXED_NOREPLACE
+#define MAP_FIXED_NOREPLACE 0x100000
+#endif
 
 uword
 clib_mem_get_default_hugepage_size (void)
@@ -87,6 +96,73 @@ done:
   return 1024ULL * size;
 }
 
+static clib_mem_page_sz_t
+legacy_get_log2_default_hugepage_size (void)
+{
+  clib_mem_page_sz_t log2_page_size = CLIB_MEM_PAGE_SZ_UNKNOWN;
+  FILE *fp;
+  char tmp[33] = { };
+
+  if ((fp = fopen ("/proc/meminfo", "r")) == NULL)
+    return CLIB_MEM_PAGE_SZ_UNKNOWN;
+
+  while (fscanf (fp, "%32s", tmp) > 0)
+    if (strncmp ("Hugepagesize:", tmp, 13) == 0)
+      {
+	u32 size;
+	if (fscanf (fp, "%u", &size) > 0)
+	  log2_page_size = 10 + min_log2 (size);
+	break;
+      }
+
+  fclose (fp);
+  return log2_page_size;
+}
+
+void
+clib_mem_main_init ()
+{
+  clib_mem_main_t *mm = &clib_mem_main;
+  uword page_size;
+  void *va;
+  int fd;
+
+  if (mm->log2_page_sz != CLIB_MEM_PAGE_SZ_UNKNOWN)
+    return;
+
+  /* system page size */
+  page_size = sysconf (_SC_PAGESIZE);
+  mm->log2_page_sz = min_log2 (page_size);
+
+  /* default system hugeppage size */
+  if ((fd = memfd_create ("test", MFD_HUGETLB)) != -1)
+    {
+      mm->log2_default_hugepage_sz = clib_mem_get_fd_log2_page_size (fd);
+      close (fd);
+    }
+  else				/* likely kernel older than 4.14 */
+    mm->log2_default_hugepage_sz = legacy_get_log2_default_hugepage_size ();
+
+  /* numa nodes */
+  va = mmap (0, page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE |
+	     MAP_ANONYMOUS, -1, 0);
+  if (va == MAP_FAILED)
+    return;
+
+  if (mlock (va, page_size))
+    goto done;
+
+  for (int i = 0; i < CLIB_MAX_NUMAS; i++)
+    {
+      int status;
+      if (move_pages (0, 1, &va, &i, &status, 0) == 0)
+	mm->numa_node_bitmap |= 1ULL << i;
+    }
+
+done:
+  munmap (va, page_size);
+}
+
 u64
 clib_mem_get_fd_page_size (int fd)
 {
@@ -96,10 +172,11 @@ clib_mem_get_fd_page_size (int fd)
   return st.st_blksize;
 }
 
-int
+clib_mem_page_sz_t
 clib_mem_get_fd_log2_page_size (int fd)
 {
-  return min_log2 (clib_mem_get_fd_page_size (fd));
+  uword page_size = clib_mem_get_fd_page_size (fd);
+  return page_size ? min_log2 (page_size) : CLIB_MEM_PAGE_SZ_UNKNOWN;
 }
 
 void
@@ -119,80 +196,10 @@ clib_mem_vm_randomize_va (uword * requested_va,
     (clib_cpu_time_now () & bit_mask) * (1ull << log2_page_size);
 }
 
-#ifndef MFD_HUGETLB
-#define MFD_HUGETLB 0x0004U
-#endif
-
-clib_error_t *
-clib_mem_create_fd (char *name, int *fdp)
-{
-  int fd;
-
-  ASSERT (name);
-
-  if ((fd = memfd_create (name, MFD_ALLOW_SEALING)) == -1)
-    return clib_error_return_unix (0, "memfd_create");
-
-  if ((fcntl (fd, F_ADD_SEALS, F_SEAL_SHRINK)) == -1)
-    {
-      close (fd);
-      return clib_error_return_unix (0, "fcntl (F_ADD_SEALS)");
-    }
-
-  *fdp = fd;
-  return 0;
-}
-
-clib_error_t *
-clib_mem_create_hugetlb_fd (char *name, int *fdp)
-{
-  clib_error_t *err = 0;
-  int fd = -1;
-  static int memfd_hugetlb_supported = 1;
-  char *mount_dir;
-  char template[] = "/tmp/hugepage_mount.XXXXXX";
-  u8 *filename;
-
-  ASSERT (name);
-
-  if (memfd_hugetlb_supported)
-    {
-      if ((fd = memfd_create (name, MFD_HUGETLB)) != -1)
-	goto done;
-
-      /* avoid further tries if memfd MFD_HUGETLB is not supported */
-      if (errno == EINVAL && strnlen (name, 256) <= 249)
-	memfd_hugetlb_supported = 0;
-    }
-
-  mount_dir = mkdtemp (template);
-  if (mount_dir == 0)
-    return clib_error_return_unix (0, "mkdtemp \'%s\'", template);
-
-  if (mount ("none", (char *) mount_dir, "hugetlbfs", 0, NULL))
-    {
-      rmdir ((char *) mount_dir);
-      err = clib_error_return_unix (0, "mount hugetlb directory '%s'",
-				    mount_dir);
-    }
-
-  filename = format (0, "%s/%s%c", mount_dir, name, 0);
-  fd = open ((char *) filename, O_CREAT | O_RDWR, 0755);
-  umount2 ((char *) mount_dir, MNT_DETACH);
-  rmdir ((char *) mount_dir);
-
-  if (fd == -1)
-    err = clib_error_return_unix (0, "open");
-
-done:
-  if (fd != -1)
-    fdp[0] = fd;
-  return err;
-}
-
 clib_error_t *
 clib_mem_vm_ext_alloc (clib_mem_vm_alloc_t * a)
 {
+  clib_mem_main_t *mm = &clib_mem_main;
   int fd = -1;
   clib_error_t *err = 0;
   void *addr = 0;
@@ -232,15 +239,16 @@ clib_mem_vm_ext_alloc (clib_mem_vm_alloc_t * a)
       /* if hugepages are needed we need to create mount point */
       if (a->flags & CLIB_MEM_VM_F_HUGETLB)
 	{
-	  if ((err = clib_mem_create_hugetlb_fd (a->name, &fd)))
-	    goto error;
-
+	  log2_page_size = CLIB_MEM_PAGE_SZ_DEFAULT_HUGE;
 	  mmap_flags |= MAP_LOCKED;
 	}
       else
+	log2_page_size = CLIB_MEM_PAGE_SZ_DEFAULT;
+
+      if ((fd = clib_mem_vm_create_fd (log2_page_size, "%s", a->name)) == -1)
 	{
-	  if ((err = clib_mem_create_fd (a->name, &fd)))
-	    goto error;
+	  err = clib_error_return (0, "%U", format_clib_error, mm->error);
+	  goto error;
 	}
 
       log2_page_size = clib_mem_get_fd_log2_page_size (fd);
@@ -345,45 +353,371 @@ clib_mem_vm_ext_free (clib_mem_vm_alloc_t * a)
     }
 }
 
+static int
+legacy_memfd_create (u8 * name)
+{
+  clib_mem_main_t *mm = &clib_mem_main;
+  int fd = -1;
+  char *mount_dir;
+  u8 *filename;
+
+  /* create mount directory */
+  if ((mount_dir = mkdtemp ("/tmp/hugepage_mount.XXXXXX")) == 0)
+    {
+      vec_reset_length (mm->error);
+      mm->error = clib_error_return_unix (mm->error, "mkdtemp");
+      return -1;
+    }
+
+  if (mount ("none", mount_dir, "hugetlbfs", 0, NULL))
+    {
+      rmdir ((char *) mount_dir);
+      vec_reset_length (mm->error);
+      mm->error = clib_error_return_unix (mm->error, "mount");
+      return -1;
+    }
+
+  filename = format (0, "%s/%s%c", mount_dir, name, 0);
+
+  if ((fd = open ((char *) filename, O_CREAT | O_RDWR, 0755)) == -1)
+    {
+      vec_reset_length (mm->error);
+      mm->error = clib_error_return_unix (mm->error, "mkdtemp");
+    }
+
+  umount2 ((char *) mount_dir, MNT_DETACH);
+  rmdir ((char *) mount_dir);
+  vec_free (filename);
+
+  return fd;
+}
+
+int
+clib_mem_vm_create_fd (clib_mem_page_sz_t log2_page_size, char *fmt, ...)
+{
+  clib_mem_main_t *mm = &clib_mem_main;
+  int fd;
+  unsigned int memfd_flags;
+  va_list va;
+  u8 *s = 0;
+
+  if (log2_page_size == mm->log2_page_sz)
+    log2_page_size = CLIB_MEM_PAGE_SZ_DEFAULT;
+
+  switch (log2_page_size)
+    {
+    case CLIB_MEM_PAGE_SZ_UNKNOWN:
+      return -1;
+    case CLIB_MEM_PAGE_SZ_DEFAULT:
+      memfd_flags = MFD_ALLOW_SEALING;
+      break;
+    case CLIB_MEM_PAGE_SZ_DEFAULT_HUGE:
+      memfd_flags = MFD_HUGETLB;
+      break;
+    default:
+      memfd_flags = MFD_HUGETLB | log2_page_size << MFD_HUGE_SHIFT;
+    }
+
+  va_start (va, fmt);
+  s = va_format (0, fmt, &va);
+  va_end (va);
+
+  /* memfd_create maximum string size is 249 chars without trailing zero */
+  if (vec_len (s) > 249)
+    _vec_len (s) = 249;
+  vec_add1 (s, 0);
+
+  /* memfd_create introduced in kernel 3.17, we don't support older kernels */
+  fd = memfd_create ((char *) s, memfd_flags);
+
+  /* kernel versions < 4.14 does not support memfd_create for huge pages */
+  if (fd == -1 && errno == EINVAL &&
+      log2_page_size == CLIB_MEM_PAGE_SZ_DEFAULT_HUGE)
+    {
+      fd = legacy_memfd_create (s);
+    }
+  else if (fd == -1)
+    {
+      vec_reset_length (mm->error);
+      mm->error = clib_error_return_unix (mm->error, "memfd_create");
+      vec_free (s);
+      return -1;
+    }
+
+  vec_free (s);
+
+  if ((memfd_flags & MFD_ALLOW_SEALING) &&
+      ((fcntl (fd, F_ADD_SEALS, F_SEAL_SHRINK)) == -1))
+    {
+      vec_reset_length (mm->error);
+      mm->error = clib_error_return_unix (mm->error, "fcntl (F_ADD_SEALS)");
+      close (fd);
+      return -1;
+    }
+
+  return fd;
+}
+
 uword
 clib_mem_vm_reserve (uword start, uword size, clib_mem_page_sz_t log2_page_sz)
 {
-  uword off, pagesize = 1ULL << log2_page_sz;
-  int mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS;
-  u8 *p;
-
-  if (start)
-    mmap_flags |= MAP_FIXED;
+  clib_mem_main_t *mm = &clib_mem_main;
+  uword pagesize = 1ULL << log2_page_sz;
+  uword sys_page_sz = 1ULL << mm->log2_page_sz;
+  uword n_bytes;
+  void *base = 0, *p;
 
   size = round_pow2 (size, pagesize);
 
-  p = uword_to_pointer (start, void *);
-  p = mmap (p, size + pagesize, PROT_NONE, mmap_flags, -1, 0);
+  /* in adition of requested reservation, we also rserve one system page
+   * (typically 4K) adjacent to the start off reservation */
 
-  if (p == MAP_FAILED)
-    return ~0;
-
-  off = round_pow2 ((uword) p, pagesize) - (uword) p;
-
-  /* trim start and end of reservation to be page aligned */
-  if (off)
+  if (start)
     {
-      munmap (p, off);
-      p += off;
+      /* start address is provided, so we just need to make sure we are not
+       * replacing existing map */
+      if (start & pow2_mask (log2_page_sz))
+	return ~0;
+
+      base = (void *) start - sys_page_sz;
+      base = mmap (base, size + sys_page_sz, PROT_NONE,
+		   MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+      return (base == MAP_FAILED) ? ~0 : start;
     }
 
-  munmap (p + size, pagesize - off);
+  /* to make sure that we get reservation aligned to page_size we need to
+   * request one additional page as mmap will return us address which is
+   * aligned only to system page size */
+  base = mmap (0, size + pagesize, PROT_NONE,
+	       MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
-  return (uword) p;
+  if (base == MAP_FAILED)
+    return ~0;
+
+  /* return additional space at the end of allocation */
+  p = base + size + pagesize;
+  n_bytes = (uword) p & pow2_mask (log2_page_sz);
+  if (n_bytes)
+    {
+      p -= n_bytes;
+      munmap (p, n_bytes);
+    }
+
+  /* return additional space at the start of allocation */
+  n_bytes = pagesize - sys_page_sz - n_bytes;
+  if (n_bytes)
+    {
+      munmap (base, n_bytes);
+      base += n_bytes;
+    }
+
+  return (uword) base + sys_page_sz;
 }
 
+clib_mem_vm_map_hdr_t *
+clib_mem_vm_get_next_map_hdr (clib_mem_vm_map_hdr_t * hdr)
+{
+  clib_mem_main_t *mm = &clib_mem_main;
+  uword sys_page_sz = 1 << mm->log2_page_sz;
+  clib_mem_vm_map_hdr_t *next;
+  if (hdr == 0)
+    {
+      hdr = mm->first_map;
+      if (hdr)
+	mprotect (hdr, sys_page_sz, PROT_READ);
+      return hdr;
+    }
+  next = hdr->next;
+  mprotect (hdr, sys_page_sz, PROT_NONE);
+  if (next)
+    mprotect (next, sys_page_sz, PROT_READ);
+  return next;
+}
+
+void *
+clib_mem_vm_map_internal (void *base, clib_mem_page_sz_t log2_page_sz,
+			  uword size, int fd, uword offset, char *name)
+{
+  clib_mem_main_t *mm = &clib_mem_main;
+  clib_mem_vm_map_hdr_t *hdr;
+  uword sys_page_sz = 1 << mm->log2_page_sz;
+  int mmap_flags = MAP_FIXED, is_huge = 0;
+
+  if (fd != -1)
+    {
+      mmap_flags |= MAP_SHARED;
+      log2_page_sz = clib_mem_get_fd_log2_page_size (fd);
+      if (log2_page_sz > mm->log2_page_sz)
+	is_huge = 1;
+    }
+  else
+    {
+      mmap_flags |= MAP_PRIVATE | MAP_ANONYMOUS;
+
+      if (log2_page_sz == mm->log2_page_sz)
+	log2_page_sz = CLIB_MEM_PAGE_SZ_DEFAULT;
+
+      switch (log2_page_sz)
+	{
+	case CLIB_MEM_PAGE_SZ_UNKNOWN:
+	  /* will fail later */
+	  break;
+	case CLIB_MEM_PAGE_SZ_DEFAULT:
+	  log2_page_sz = mm->log2_page_sz;
+	  break;
+	case CLIB_MEM_PAGE_SZ_DEFAULT_HUGE:
+	  mmap_flags |= MAP_HUGETLB;
+	  log2_page_sz = mm->log2_default_hugepage_sz;
+	  is_huge = 1;
+	  break;
+	default:
+	  mmap_flags |= MAP_HUGETLB;
+	  mmap_flags |= log2_page_sz << MAP_HUGE_SHIFT;
+	  is_huge = 1;
+	}
+    }
+
+  if (log2_page_sz == CLIB_MEM_PAGE_SZ_UNKNOWN)
+    return CLIB_MEM_VM_MAP_FAILED;
+
+  size = round_pow2 (size, 1 << log2_page_sz);
+
+  base = (void *) clib_mem_vm_reserve ((uword) base, size, log2_page_sz);
+
+  if (base == (void *) ~0)
+    return CLIB_MEM_VM_MAP_FAILED;
+
+  base = mmap (base, size, PROT_READ | PROT_WRITE, mmap_flags, fd, offset);
+
+  if (base == MAP_FAILED)
+    return CLIB_MEM_VM_MAP_FAILED;
+
+  if (is_huge && (mlock (base, size) != 0))
+    {
+      munmap (base, size);
+      return CLIB_MEM_VM_MAP_FAILED;
+    }
+
+  hdr = mmap (base - sys_page_sz, sys_page_sz, PROT_READ | PROT_WRITE,
+	      MAP_ANONYMOUS | MAP_PRIVATE | MAP_FIXED, -1, 0);
+
+  if (hdr != base - sys_page_sz)
+    {
+      munmap (base, size);
+      return CLIB_MEM_VM_MAP_FAILED;
+    }
+
+  if (mm->last_map)
+    {
+      mprotect (mm->last_map, sys_page_sz, PROT_READ | PROT_WRITE);
+      mm->last_map->next = hdr;
+      mprotect (mm->last_map, sys_page_sz, PROT_NONE);
+    }
+  else
+    mm->first_map = hdr;
+
+  hdr->next = 0;
+  hdr->prev = mm->last_map;
+  mm->last_map = hdr;
+
+  hdr->base_addr = (uword) base;
+  hdr->log2_page_sz = log2_page_sz;
+  hdr->num_pages = size >> log2_page_sz;
+  hdr->fd = fd;
+  snprintf (hdr->name, CLIB_VM_MAP_HDR_NAME_MAX_LEN - 1, "%s", (char *) name);
+  hdr->name[CLIB_VM_MAP_HDR_NAME_MAX_LEN - 1] = 0;
+  mprotect (hdr, sys_page_sz, PROT_NONE);
+
+  CLIB_MEM_UNPOISON (base, size);
+  return base;
+}
+
+int
+clib_mem_vm_unmap (void *base)
+{
+  clib_mem_main_t *mm = &clib_mem_main;
+  uword size, sys_page_sz = 1 << mm->log2_page_sz;
+  clib_mem_vm_map_hdr_t *hdr = base - sys_page_sz;;
+
+  if (mprotect (hdr, sys_page_sz, PROT_READ | PROT_WRITE) != 0)
+    return -1;
+
+  size = hdr->num_pages << hdr->log2_page_sz;
+  if (munmap ((void *) hdr->base_addr, size) != 0)
+    return -1;
+
+  if (hdr->next)
+    {
+      mprotect (hdr->next, sys_page_sz, PROT_READ | PROT_WRITE);
+      hdr->next->prev = hdr->prev;
+      mprotect (hdr->next, sys_page_sz, PROT_NONE);
+    }
+  else
+    mm->last_map = hdr->prev;
+
+  if (hdr->prev)
+    {
+      mprotect (hdr->prev, sys_page_sz, PROT_READ | PROT_WRITE);
+      hdr->prev->next = hdr->next;
+      mprotect (hdr->prev, sys_page_sz, PROT_NONE);
+    }
+  else
+    mm->first_map = hdr->next;
+
+  if (munmap (hdr, sys_page_sz) != 0)
+    return -1;
+
+  return 0;
+}
+
+void
+clib_mem_get_page_stats (void *start, clib_mem_page_sz_t log2_page_size,
+			 uword n_pages, clib_mem_page_stats_t * stats)
+{
+  int i, *status = 0;
+  void **ptr = 0;
+
+  log2_page_size = clib_mem_log2_page_size_validate (log2_page_size);
+
+  vec_validate (status, n_pages - 1);
+  vec_validate (ptr, n_pages - 1);
+
+  for (i = 0; i < n_pages; i++)
+    ptr[i] = start + (i << log2_page_size);
+
+  clib_memset (stats, 0, sizeof (clib_mem_page_stats_t));
+
+  if (move_pages (0, n_pages, ptr, 0, status, 0) != 0)
+    {
+      stats->unknown = n_pages;
+      return;
+    }
+
+  for (i = 0; i < n_pages; i++)
+    {
+      if (status[i] >= 0 && status[i] < CLIB_MAX_NUMAS)
+	{
+	  stats->mapped++;
+	  stats->per_numa[status[i]]++;
+	}
+      else if (status[i] == -EFAULT)
+	stats->not_mapped++;
+      else
+	stats->unknown++;
+    }
+}
+
+
 u64 *
-clib_mem_vm_get_paddr (void *mem, int log2_page_size, int n_pages)
+clib_mem_vm_get_paddr (void *mem, clib_mem_page_sz_t log2_page_size,
+		       int n_pages)
 {
   int pagesize = sysconf (_SC_PAGESIZE);
   int fd;
   int i;
   u64 *r = 0;
+
+  log2_page_size = clib_mem_log2_page_size_validate (log2_page_size);
 
   if ((fd = open ((char *) "/proc/self/pagemap", O_RDONLY)) == -1)
     return 0;
