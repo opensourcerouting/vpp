@@ -58,6 +58,11 @@ typedef struct {
 
 } tap_inject_main_t;
 
+enum {
+  NEXT_NEIGHBOR_ARP,
+  NEXT_NEIGHBOR_ICMP6,
+};
+
 
 tap_inject_main_t * tap_inject_get_main (void);
 
@@ -104,5 +109,20 @@ clib_error_t * tap_inject_tap_connect (vnet_hw_interface_t * hw);
 clib_error_t * tap_inject_tap_disconnect (u32 sw_if_index);
 
 u8 * format_tap_inject_tap_name (u8 * s, va_list * args);
+
+/* Node */
+vlib_node_registration_t tap_inject_rx_node;
+vlib_node_registration_t tap_inject_tx_node;
+vlib_node_registration_t tap_inject_neighbor_node;
+
+
+uword tap_inject_tx (vlib_main_t * vm, vlib_node_runtime_t * node,
+		     vlib_frame_t * f);
+
+uword tap_inject_neighbor (vlib_main_t * vm, vlib_node_runtime_t * node,
+			   vlib_frame_t * f);
+
+uword tap_inject_rx (vlib_main_t * vm, vlib_node_runtime_t * node,
+		     vlib_frame_t * f);
 
 #endif /* _TAP_INJECT_H */
