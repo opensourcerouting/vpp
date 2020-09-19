@@ -181,9 +181,8 @@ tap_rx (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * f, int fd)
     {
       u32 len = vec_len (im->rx_buffers);
 
-      len = vlib_buffer_alloc_from_pool (vm,
-                    &im->rx_buffers[len], NUM_BUFFERS_TO_ALLOC,
-                    VLIB_BUFFER_DEFAULT_FREE_LIST_INDEX);
+      len = vlib_buffer_alloc(vm,
+                    &im->rx_buffers[len], NUM_BUFFERS_TO_ALLOC);
 
       _vec_len (im->rx_buffers) += len;
 

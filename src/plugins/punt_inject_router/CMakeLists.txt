@@ -14,13 +14,9 @@
 
 add_vpp_plugin(punt_inject_router
   SOURCES
-  punt_inject_router.c
-  node.c
-  punt_inject_router_periodic.c
   tap_inject.c
   tap_inject_node.c
   tap_inject_tap.c
-  punt_inject_router.h
   tap_inject.h
   
 

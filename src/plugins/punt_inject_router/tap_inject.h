@@ -111,10 +111,10 @@ clib_error_t * tap_inject_tap_disconnect (u32 sw_if_index);
 u8 * format_tap_inject_tap_name (u8 * s, va_list * args);
 
 /* Node */
-vlib_node_registration_t tap_inject_rx_node;
-vlib_node_registration_t tap_inject_tx_node;
-vlib_node_registration_t tap_inject_neighbor_node;
 
+extern vlib_node_registration_t tap_inject_rx_node;
+extern vlib_node_registration_t tap_inject_tx_node;
+extern vlib_node_registration_t tap_inject_neighbor_node;
 
 uword tap_inject_tx (vlib_main_t * vm, vlib_node_runtime_t * node,
 		     vlib_frame_t * f);
