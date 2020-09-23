@@ -322,29 +322,6 @@ list(APPEND VNET_MULTIARCH_SOURCES vxlan/decap.c)
 list(APPEND VNET_API_FILES vxlan/vxlan.api)
 
 ##############################################################################
-# Layer 2 / Geneve
-##############################################################################
-list(APPEND VNET_SOURCES
-  geneve/geneve.c
-  geneve/encap.c
-  geneve/decap.c
-  geneve/geneve_api.c
-)
-
-list(APPEND VNET_MULTIARCH_SOURCES
-  geneve/encap.c
-  geneve/decap.c
-)
-
-list(APPEND VNET_HEADERS
-  geneve/geneve.h
-  geneve/geneve_packet.h
-  geneve/geneve_error.def
-)
-
-list(APPEND VNET_API_FILES geneve/geneve.api)
-
-##############################################################################
 # Layer 2 / Bonding
 ##############################################################################
 list(APPEND VNET_SOURCES
@@ -360,24 +337,6 @@ list(APPEND VNET_HEADERS
 
 list(APPEND VNET_MULTIARCH_SOURCES bonding/node.c bonding/device.c)
 list(APPEND VNET_API_FILES bonding/bond.api)
-
-##############################################################################
-# Layer 2 / LLDP
-##############################################################################
-list(APPEND VNET_SOURCES
-  lldp/lldp_input.c
-  lldp/lldp_node.c
-  lldp/lldp_output.c
-  lldp/lldp_cli.c
-  lldp/lldp_api.c
-)
-
-list(APPEND VNET_HEADERS
-  lldp/lldp_protocol.h
-  lldp/lldp.h
-)
-
-list(APPEND VNET_API_FILES lldp/lldp.api)
 
 ##############################################################################
 # Layer 2/3 "classify"
@@ -780,29 +739,6 @@ list(APPEND VNET_HEADERS
 )
 
 ##############################################################################
-# Tunnel protocol: l2tpv3
-##############################################################################
-list(APPEND VNET_SOURCES
-  l2tp/l2tp.c
-  l2tp/encap.c
-  l2tp/decap.c
-  l2tp/pg.c
-  l2tp/l2tp_api.c
-)
-
-list(APPEND VNET_MULTIARCH_SOURCES
-  l2tp/encap.c
-  l2tp/decap.c
-)
-
-list(APPEND VNET_HEADERS
-  l2tp/l2tp.h
-  l2tp/packet.h
-)
-
-list(APPEND VNET_API_FILES l2tp/l2tp.api)
-
-##############################################################################
 # Tunnel protocol: gre+mpls
 ##############################################################################
 list(APPEND VNET_SOURCES
@@ -880,64 +816,6 @@ list(APPEND VNET_HEADERS
 )
 
 list(APPEND VNET_API_FILES vxlan-gpe/vxlan_gpe.api)
-
-##############################################################################
-# LISP control plane: lisp-cp
-##############################################################################
-
-list(APPEND VNET_SOURCES
-  lisp-cp/lisp_types.c
-  lisp-cp/lisp_cp_dpo.c
-  lisp-cp/control.c
-  lisp-cp/gid_dictionary.c
-  lisp-cp/lisp_msg_serdes.c
-  lisp-cp/packets.c
-  lisp-cp/one_cli.c
-  lisp-cp/lisp_cli.c
-  lisp-cp/one_api.c
-  lisp-cp/lisp_api.c
-  lisp-cp/lisp_types_api.c
-)
-
-list(APPEND VNET_HEADERS
-  lisp-cp/lisp_types.h
-  lisp-cp/packets.h
-  lisp-cp/gid_dictionary.h
-  lisp-cp/lisp_cp_messages.h
-  lisp-cp/lisp_msg_serdes.h
-  lisp-cp/control.h
-  lisp-cp/lisp_types_api.h
-)
-
-list(APPEND VNET_API_FILES lisp-cp/lisp_types.api)
-list(APPEND VNET_API_FILES lisp-cp/lisp.api)
-list(APPEND VNET_API_FILES lisp-cp/one.api)
-
-##############################################################################
-# Tunnel protocol: lisp-gpe
-##############################################################################
-
-list(APPEND VNET_SOURCES
-  lisp-gpe/lisp_gpe.c
-  lisp-gpe/lisp_gpe_sub_interface.c
-  lisp-gpe/lisp_gpe_adjacency.c
-  lisp-gpe/lisp_gpe_tunnel.c
-  lisp-gpe/lisp_gpe_fwd_entry.c
-  lisp-gpe/lisp_gpe_tenant.c
-  lisp-gpe/interface.c
-  lisp-gpe/decap.c
-  lisp-gpe/lisp_gpe_api.c
-)
-
-list(APPEND VNET_HEADERS
-  lisp-gpe/lisp_gpe.h
-  lisp-gpe/lisp_gpe_fwd_entry.h
-  lisp-gpe/lisp_gpe_tenant.h
-  lisp-gpe/lisp_gpe_packet.h
-  lisp-gpe/lisp_gpe_error.def
-)
-
-list(APPEND VNET_API_FILES lisp-gpe/lisp_gpe.api)
 
 ##############################################################################
 # ipv6 segment routing

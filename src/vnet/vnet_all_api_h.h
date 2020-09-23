@@ -40,17 +40,12 @@
 #include <vnet/gre/gre.api.h>
 #include <vnet/interface.api.h>
 #include <vnet/l2/l2.api.h>
-#include <vnet/l2tp/l2tp.api.h>
 #include <vnet/span/span.api.h>
 #include <vnet/ip/ip.api.h>
 #include <vnet/vxlan/vxlan.api.h>
-#include <vnet/lldp/lldp.api.h>
 #include <vnet/vxlan-gpe/vxlan_gpe.api.h>
 #include <vnet/bfd/bfd.api.h>
 #include <vnet/ipsec/ipsec.api.h>
-#include <vnet/lisp-cp/lisp.api.h>
-#include <vnet/lisp-gpe/lisp_gpe.api.h>
-#include <vnet/lisp-cp/one.api.h>
 #include <vnet/session/session.api.h>
 #include <vnet/mpls/mpls.api.h>
 #include <vnet/srv6/sr.api.h>
